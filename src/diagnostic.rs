@@ -1,13 +1,15 @@
-//! Phase 1 — observe, don't patch.
+//! Diagnostic mode — observe, don't patch.
 //!
-//! The throw-invuln state is *transient*: it rises when the crit animation starts
-//! and clears when it ends. So instead of dumping raw bytes for a human to diff,
-//! this watches every candidate bit per enemy and logs **rising edges** (0->1),
-//! suppressing bits that flip constantly (per-frame churn like `force_update`).
-//! Riposte a lone enemy and the invuln bit shows up as a rare RISE correlated with
-//! the crit — that's the exact `region`/`offset`/`bit` to put in `patch::TARGET`.
+//! A fallback for investigating an enemy that uses a different invuln flag than the
+//! patch targets. The throw-invuln state is *transient*: it rises when the crit
+//! animation starts and clears when it ends. So instead of dumping raw bytes to diff
+//! by hand, this watches every candidate bit per enemy and logs **rising edges**
+//! (0->1), suppressing bits that flip constantly (per-frame churn like `force_update`).
+//! Riposte a lone enemy and the invuln bit shows up as a rare RISE naming the exact
+//! region/offset/bit; map that to a typed SDK field and clear it in `patch.rs` the
+//! same way action 67 is.
 //!
-//! Candidate memory, all read via pointers the SDK guarantees valid:
+//! Candidate memory, read via the SDK's typed pointers (assumed valid for a live ChrIns):
 //!   * `ChrIns` window at 0x1c0 (named flag bytes incl. `is_invincible` + nearby), and
 //!   * heads of the combat-relevant modules: `data`, `action_flag`, `throw`, `super_armor`.
 //! Active SpEffects are tracked separately (a crit-only speffect is an alternative lever).

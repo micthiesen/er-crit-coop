@@ -2,15 +2,14 @@
 //! (riposte/backstab) animations.
 //!
 //! Vanilla makes the enemy invulnerable for the crit window via TAE "Event Type 0,
-//! flag 67 (Invincible excluding Throw Attacks)", which sets runtime state on the
-//! enemy's `ChrIns`. That state isn't reachable from `regulation.bin` params and
-//! the location isn't publicly documented, so the work splits in two:
+//! action 67 (Invincible excluding Throw Attacks)", a runtime flag on the enemy's
+//! `ChrIns`. It isn't reachable from `regulation.bin` params, but the fromsoftware-rs
+//! SDK exposes it as a typed field, so the mod just clears it. Two modes:
 //!
-//!   * [`MODE`] `Diagnostic` — observe where the invuln state lives (see `diagnostic`),
-//!   * [`MODE`] `Patch` — clear it each frame so the enemy stays damageable (see `patch`).
-//!
-//! Default is `Diagnostic`. Once the in-game session pins the bit (set in `patch::TARGET`),
-//! flip `MODE` to `Patch` and rebuild — that's the whole switch to the working mod.
+//!   * [`MODE`] `Patch` (default) — clear the flag each frame so the enemy stays
+//!     damageable during crits (see `patch`).
+//!   * [`MODE`] `Diagnostic` — log enemy flag/state changes instead of patching, to
+//!     investigate an enemy that uses a different invuln flag (see `diagnostic`).
 
 use std::ffi::c_void;
 
@@ -22,7 +21,7 @@ mod diagnostic;
 mod logger;
 mod patch;
 
-#[allow(dead_code)] // Patch is selected by flipping MODE after the diagnostic session.
+#[allow(dead_code)] // One variant is always unused: MODE is a compile-time constant.
 enum Mode {
     Diagnostic,
     Patch,

@@ -15,7 +15,8 @@ pub fn init() {
         let _ = WriteLogger::init(LevelFilter::Info, config, file);
     }
 
-    // Don't let a panic in the worker thread abort the game without a trace.
+    // Record any worker-thread panic to the log. (Release builds use panic=abort,
+    // so the process still exits after this runs; the point is leaving a trace.)
     std::panic::set_hook(Box::new(|info| {
         log::error!("PANIC: {info}");
     }));

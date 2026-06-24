@@ -27,23 +27,28 @@ Optional argument: an explicit version (e.g. `v0.2.0`). If omitted, propose one.
 
 3. **Pick the version.** Use the argument if given. Otherwise infer a semver bump from the
    changes since the last tag (behavior change/new feature → minor; fixes only → patch;
-   breaking install/usage change → major) and state your choice.
+   breaking install/usage change → major) and state your choice. Call it `X.Y.Z` (tag `vX.Y.Z`).
 
-4. **Write the release notes — a clean delta, not a commit dump.** Read
+4. **Bump the version in `Cargo.toml` and commit it.** Set `version = "X.Y.Z"` in `Cargo.toml`,
+   then `cargo build --release --target x86_64-pc-windows-gnu` to refresh `Cargo.lock`. Commit
+   both (`git commit -m "Release vX.Y.Z"`) and `git push origin main`. The tag must point at a
+   commit whose `Cargo.toml` already carries the released version, since CI builds from the tag.
+
+5. **Write the release notes — a clean delta, not a commit dump.** Read
    `git log <last-tag>..HEAD` for raw material, then write for a user installing the mod:
    - Lead with what changed in behavior or how you use it.
    - Group related changes; drop refactors/internal churn that don't affect users.
    - Keep it tight (a short intro line + a few bullets). No em dashes.
    - For the first release, describe what the mod does and the one-file install.
 
-5. **Create the annotated tag with those notes as the message, and push:**
+6. **Create the annotated tag with those notes as the message, and push:**
    ```bash
    git tag -a vX.Y.Z -F <notes-file>   # write the notes to a temp file first
    git push origin vX.Y.Z
    ```
    (Annotated tag is required — `--notes-from-tag` reads this message.)
 
-6. **Watch and report.** `gh run watch` (or poll `gh run list --workflow=release.yml`)
+7. **Watch and report.** `gh run watch` (or poll `gh run list --workflow=release.yml`)
    until the release job finishes, then give the user the release URL
    (`gh release view vX.Y.Z --json url -q .url`). If CI fails, surface the log and stop.
 
