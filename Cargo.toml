@@ -1,6 +1,6 @@
 [package]
 name = "er-crit-coop"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 description = "Elden Ring DLL mod: let Seamless Co-op partners damage enemies during critical (riposte/backstab) animations"
 license = "MIT"
