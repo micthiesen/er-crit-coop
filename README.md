@@ -1,53 +1,72 @@
 # er-crit-coop
 
 An Elden Ring DLL mod that lets **Seamless Co-op** partners deal damage to an enemy
-while it's locked in a **critical-hit animation** (riposte / backstab / guard counter),
-instead of the enemy being invulnerable to everyone but the player performing the crit.
-This mirrors the behavior in Nightreign.
+while it's locked in a **critical-hit animation** (riposte / backstab / guard counter).
 
-## Why a DLL instead of an animation pack
+In vanilla, when one player lands a riposte the enemy becomes invulnerable to everyone
+*except* the player performing the crit, so your partners' hits whiff for the whole
+animation. This mod removes that lockout, so anyone can keep damaging the enemy through a
+crit — the way Nightreign handles it.
 
-The popular [Critical Attack IFrame Remover](https://www.nexusmods.com/eldenring/mods/9624)
-edits ~425 `chr/*.anibnd.dcx` files to strip the invulnerability TAE event. That approach:
+## Install
 
-- needs ModEngine/me3 to load (asset override), and
-- is unreliable in Seamless Co-op (animation overrides are evaluated where the enemy is
-  simulated — the host — and can't merge, so coverage is partial).
+1. Grab `er_crit_coop.dll` from the [latest release](../../releases/latest).
+2. Drop it in your Elden Ring `Game/mods/` folder (the
+   [Elden Mod Loader](https://www.nexusmods.com/eldenring/mods/117) folder — the same one
+   Seamless Co-op users already have for DLL mods).
+3. Launch as usual. That's it — no ModEngine or me3 required.
 
-The invulnerability comes from **TAE Event Type 0, flag 67 ("Invincible excluding Throw
-Attacks")**, which sets a runtime state on the victim's `ChrIns`. It is **not** expressible
-in `regulation.bin` params (`ThrowParam` has no invuln field; `AtkParam` notes TAE
-invincibility cannot be overridden by params). So the robust, simple-to-install option is a
-single DLL that clears that runtime state, applied on every machine (host included).
+**For co-op:** the enemy is simulated on the **host**, so the host must have the mod for
+its damage to register; simplest is for **everyone in the session to install it**. It
+doesn't touch `regulation.bin`, so it won't block anyone from connecting.
 
-- **Install:** one `.dll`, loaded by Elden Mod Loader (or ModEngine2/me3 alongside `ersc.dll`).
-- **Coop:** patches the actual simulation state, not local animation playback.
-- **Anti-cheat:** Seamless Co-op bypasses EAC (launches `eldenring.exe` directly), so a
-  memory-patching DLL is fine in coop. Never take a modded session onto official servers.
+> Seamless Co-op runs outside EAC, so this is safe to use in co-op. Don't take a modded
+> session onto the official servers.
 
-## Status
+## How it works
 
-**Functional (`MODE = Patch`), pending in-game verification.** The `fromsoftware-rs` SDK
-exposes the exact flag by name — `CSChrActionFlagModule::action_modifiers_flags::`
-`invincible_excluding_throw_attacks_defender` (TAE Event 0, action 67) — so no offset
-hunting or calibration session was needed. `src/patch.rs` clears that one bit every 8ms on
-every open-field enemy, through the SDK's typed setter (crash-safe, no raw offsets). The
-riposte still lands; only the "everyone-else-can't-hit-me" bit is dropped.
+A riposte/backstab is a *throw*: TAE Event 0, action **67**
+(`INVINCIBLE_EXCLUDING_THROW_ATTACKS_DEFENDER`) sets a flag on the victim's `ChrIns` that
+blocks all damage except the throwing player's. This mod clears that one flag every frame
+on every open-field enemy, via the SDK's typed field — so the riposte itself still lands,
+but everyone else can hit the enemy too. Nothing else is touched.
 
-What's left is to confirm it in-game (the log records `cleared crit-invuln` when the
-mechanism fires) and in a coop test. `src/diagnostic.rs` (`MODE = Diagnostic`) remains for
-investigating any enemy that uses a different invuln flag.
+This is why it's a DLL rather than an animation pack: the flag is runtime combat state, not
+something `regulation.bin` params can express, and clearing it in memory takes effect where
+the enemy is actually simulated (the host) — which is what makes it hold up in co-op.
 
-## Build
+An existing approach, the *Critical Attack IFrame Remover* mod, instead edits ~425
+`chr/*.anibnd.dcx` animation files to strip the invulnerability event. That needs
+ModEngine/me3 to load and is unreliable in co-op (animation overrides can't merge and are
+evaluated per-client), which is what this mod is meant to avoid.
 
-Cross-compiles to a Windows DLL from Linux:
+## Build from source
+
+Cross-compiles to a Windows DLL from Linux (no Windows host needed):
 
 ```bash
-rustup target add x86_64-pc-windows-gnu   # one-time; needs mingw-w64
+# needs mingw-w64 (Arch: pacman -S mingw-w64-gcc). The Rust target is pinned in
+# rust-toolchain.toml and installed automatically.
 cargo build --release --target x86_64-pc-windows-gnu
 # -> target/x86_64-pc-windows-gnu/release/er_crit_coop.dll
-./scripts/deploy.sh                        # copy into the game's Elden Mod Loader mods/ folder
+./scripts/deploy.sh   # copies it into the local game's mods/ folder
 ```
 
 Built on the [`fromsoftware-rs`](https://github.com/vswarte/fromsoftware-rs) SDK
 (`eldenring` crate), pinned by commit in `Cargo.toml`.
+
+### Diagnostic mode
+
+`src/lib.rs` has a `MODE` switch. `Patch` (default) is the mod; `Diagnostic` instead logs
+each enemy's flag/SpEffect changes to `er_crit_coop.log` — useful if some enemy turns out
+to use a different invulnerability flag than action 67.
+
+## Releases
+
+Pushing a `vX.Y.Z` tag triggers CI (`.github/workflows/release.yml`), which cross-compiles
+the DLL and publishes a GitHub release with the binary attached, using the tag's annotated
+message as the release notes. Use the `/release` skill to mint one.
+
+## License
+
+MIT OR Apache-2.0.
