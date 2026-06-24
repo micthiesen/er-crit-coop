@@ -28,7 +28,18 @@ use fromsoftware_shared::FromStatic;
 /// TAE re-setting the flag each frame.
 const TICK: Duration = Duration::from_millis(8);
 
+/// Let the game finish initializing before our thread touches anything. Elden Mod
+/// Loader already delays DLL load ~5s; this adds margin past world setup.
+const STARTUP_GRACE: Duration = Duration::from_secs(5);
+
+/// Cheap sanity check on a pointer the game handed us: canonical user-space and
+/// 8-aligned. Filters obviously torn-down/garbage entries before we dereference.
+fn looks_valid(p: usize) -> bool {
+    p >= 0x10000 && p < 0x0001_0000_0000_0000 && p % 8 == 0
+}
+
 pub fn patch_loop() {
+    std::thread::sleep(STARTUP_GRACE);
     log::info!(
         "patch active: clearing invincible_excluding_throw_attacks_defender (TAE action 67) \
          on open-field enemies every {}ms",
@@ -42,8 +53,16 @@ pub fn patch_loop() {
             // `characters()` yields `&mut ChrIns` even from `&WorldChrMan` (it walks
             // the ChrSet via raw pointers), so we can clear the flag in place.
             for chr in wcm.open_field_chr_set.base.characters() {
-                let action_flag = &mut *(&mut *chr.modules).action_flag;
-                let flags = &mut action_flag.action_modifiers_flags;
+                // Guard against torn-down characters before dereferencing.
+                let modules_ptr = chr.modules.as_ptr();
+                if !looks_valid(modules_ptr as usize) {
+                    continue;
+                }
+                let af_ptr = unsafe { &*modules_ptr }.action_flag.as_ptr();
+                if !looks_valid(af_ptr as usize) {
+                    continue;
+                }
+                let flags = &mut unsafe { &mut *af_ptr }.action_modifiers_flags;
 
                 if flags.invincible_excluding_throw_attacks_defender() {
                     flags.set_invincible_excluding_throw_attacks_defender(false);
