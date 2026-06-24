@@ -31,6 +31,10 @@ enum Mode {
 /// the default; `Diagnostic` is kept for investigating any enemies it misses.
 const MODE: Mode = Mode::Patch;
 
+// Only DLL_PROCESS_ATTACH is handled, deliberately. In Patch mode we register a task into
+// the game's task pool that holds a pointer and vtable into this DLL's image; the SDK has no
+// way to unregister it. So the DLL must stay resident for the process lifetime. Do NOT add a
+// DLL_PROCESS_DETACH cleanup path: unloading while the task is registered is a use-after-free.
 #[unsafe(no_mangle)]
 unsafe extern "system" fn DllMain(_: HINSTANCE, reason: u32, _: *mut c_void) -> BOOL {
     if reason == DLL_PROCESS_ATTACH {

@@ -1,4 +1,4 @@
-//! The functional patch, run as a game main-thread task.
+//! The functional patch, run as a recurring game-frame task.
 //!
 //! Clears the riposte-victim invulnerability (`CSChrActionFlagModule`
 //! `action_modifiers_flags::invincible_excluding_throw_attacks_defender`, TAE action 67)
@@ -6,12 +6,18 @@
 //! crit (riposte/backstab/guard counter) instead of it being immune to everyone but the
 //! player landing the crit.
 //!
-//! It runs as a recurring task in the `WorldChrMan_PostPhysics` phase: after the character
-//! behavior update has (re)set the flag for the frame, and immediately before `DmgMan`
-//! applies damage. Because the closure runs on the game's main thread, in step with the
-//! game, the character set is stable while we touch it: no cross-thread data race, and no
-//! pointer-validity guards, atomics, or raw `&mut` re-derivation are needed (contrast the
-//! earlier free-running background-thread version). We only flip a bit the game owns.
+//! It registers a recurring task in the `WorldChrMan_PostPhysics` phase of the game's frame
+//! pipeline. The safety here is **frame-ordering**, not thread exclusivity: the phase runs
+//! after the character behavior update has (re)set the flag for the frame and before
+//! `DmgMan` reads it later in the same frame, so clearing it there makes the enemy
+//! damageable for that frame's damage pass. Running inside the game's own scheduled phase
+//! (rather than a free-running background thread, as an earlier version did) means we touch
+//! `ChrIns` in step with the frame instead of racing the behavior/damage phases that own
+//! those writes. Access goes through the SDK's typed field, no raw pointers.
+//!
+//! Caveat: the flag shares a `u64` word with other action-modifier bits, and the SDK setter
+//! is a read-modify-write of that word. That's fine as long as nothing else writes the word
+//! during this phase (the behavior phase that sets these bits has already run for the frame).
 
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
@@ -23,8 +29,8 @@ use fromsoftware_shared::{FromStatic, SharedTaskImpExt};
 /// How long the init thread waits for the game's task system before giving up.
 const INIT_TIMEOUT: Duration = Duration::from_secs(60);
 
-/// Clear after the behavior update (which sets the flag) and before damage is applied:
-/// `DmgMan_Pre` runs immediately after this phase.
+/// Run after the behavior update (which sets the flag) and before damage is read.
+/// `DmgMan_Pre` runs later in the same frame.
 const PHASE: CSTaskGroupIndex = CSTaskGroupIndex::WorldChrMan_PostPhysics;
 
 static FRAMES: AtomicU64 = AtomicU64::new(0);
@@ -42,15 +48,27 @@ pub fn install() {
         }
     };
 
-    // Dropping the handle cancels the task, so leak it: we want it for the process'
-    // lifetime.
+    // The task is registered into the game's task pool for the rest of the process'
+    // lifetime; the SDK never unregisters it (its `cancel()` is a no-op stub and the task
+    // keeps an internal self-reference). Forget the handle so its `Drop` can't flip the
+    // cancel flag, and so this never gets "tidied up" into a dangling task. Do not replace
+    // this with a stored/dropped handle.
     let handle = cs_task.run_recurring(|_: &FD4TaskData| on_frame(), PHASE);
     std::mem::forget(handle);
 
     log::info!("patch installed: clearing crit-invuln in {PHASE:?} each frame");
 }
 
-/// Per-frame, on the main thread. Clears the throw-invuln flag on every open-field enemy.
+/// Per-frame, in the `PostPhysics` phase. Clears the crit-invuln flag on every open-field
+/// enemy.
+///
+/// TODO(robustness): `characters()` yields every entry whose `chr_ins` is `Some` regardless
+/// of `ChrSetEntry::chr_load_status`, so across a loading/fast-travel transition this could
+/// touch a mid-init/teardown `ChrIns` whose module pointers aren't wired up. Running only in
+/// `PostPhysics` (vs the old every-8ms background thread) makes that window small, but the
+/// fully robust version would iterate the ChrSet entries directly and skip any whose status
+/// isn't `Active` before dereferencing `modules`. Left out for now because it needs an
+/// in-game retest to confirm it doesn't gate out live enemies.
 fn on_frame() {
     // Heartbeat first, so it confirms the task fired regardless of world state
     // (first tick, then ~every 10s at 60fps).
