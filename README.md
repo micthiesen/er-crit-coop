@@ -12,8 +12,8 @@ crit — the way Nightreign handles it.
 
 1. Grab `er_crit_coop.dll` from the [latest release](../../releases/latest).
 2. Drop it in your Elden Ring `Game/mods/` folder (the
-   [Elden Mod Loader](https://www.nexusmods.com/eldenring/mods/117) folder — the same one
-   Seamless Co-op users already have for DLL mods).
+   [Elden Mod Loader](https://github.com/techiew/EldenRingModLoader) folder — the same one
+   you already use for DLL mods alongside Seamless Co-op).
 3. Launch as usual. That's it — no ModEngine or me3 required.
 
 **For co-op:** the enemy is simulated on the **host**, so the host must have the mod for
