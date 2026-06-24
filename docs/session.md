@@ -1,29 +1,26 @@
-# Diagnostic session procedure (phase 1)
+# Diagnostic mode
 
-Goal: find the `ChrIns` flag/speffect that grants invulnerability during a critical hit,
-by riposting a lone enemy while the DLL logs every open-field character's state on change.
+The mod ships in `Patch` mode (the actual fix). `Diagnostic` mode is a fallback for
+investigating an enemy that turns out to use a different invulnerability flag than
+TAE action 67 — it patches nothing, just logs each open-field enemy's state on change.
 
-## Setup
-1. Build + deploy: `cargo build --release --target x86_64-pc-windows-gnu && ./scripts/deploy.sh`
-   (copies `er_crit_coop.dll` into the game's Elden Mod Loader `mods/` folder).
-2. Launch Elden Ring the normal way (Steam → Seamless Co-op). Solo is fine for discovery.
-3. Confirm load: `er_crit_coop.log` should appear in `ELDEN RING/Game/` with an
-   `er-crit-coop loaded` line. If it doesn't, Elden Mod Loader didn't load it alongside
-   ERSC and we switch to loading via ModEngine2/me3.
+## Enable it
+In `src/lib.rs`, set `const MODE: Mode = Mode::Diagnostic;`, then build + deploy:
+```bash
+cargo build --release --target x86_64-pc-windows-gnu && ./scripts/deploy.sh
+```
 
-## The test
-1. Find a **single, isolated weak humanoid** enemy (e.g. a lone Godrick Soldier / wandering
-   noble) so the log isn't crowded. Note the area is calm.
-2. Get it staggered and perform a **critical hit (riposte)**. A backstab also works.
-3. Do it 2–3 times, pausing a couple seconds between, then quit to desktop.
+## Use it
+1. Launch the game; `er_crit_coop.log` is written to `ELDEN RING/Game/` (cwd is logged on
+   startup in case Proton differs).
+2. Find a lone enemy and riposte/backstab it a few times, then quit.
+3. Read the log. It reports, per enemy:
+   - `RISE region=<...> off=<...> bit=<n>` — a bit that turned on (suppressing per-frame
+     churn), across the `ChrIns` flag window and the `data`/`action_flag`/`throw`/
+     `super_armor` module heads, and
+   - `SPFX+ added=[...]` — SpEffects gained.
+   A rising bit (or new speffect) that lines up with the riposte is the invuln state; map
+   it to a typed field in the SDK and clear it in `patch.rs` the same way action 67 is.
 
-## Reading the result
-- Each log line: `cid=<charId> type=<ChrType> ptr=<chrIns> b@0x1c0=<hexbytes> spfx=[..]`.
-- Filter to the riposted enemy's `cid`/`ptr`. Diff consecutive lines around the riposte:
-  - a **new SpEffect id** appearing only during the crit → that's the lever (erase it), or
-  - a **byte/bit flipping** in the `b@0x1c0` window during the crit → that's the flag (clear it).
-- That offset/id gets hardcoded (or AOB-anchored) into phase 2's patch.
-
-If neither the byte window nor speffects move during the riposte, widen `DUMP_START`/`DUMP_LEN`
-in `src/lib.rs` or add a dump of the `ChrInsModuleContainer` (the TGA cheat table located a
-per-instance no-damage flag at `module + 0x10EF8`).
+Reads are confined to memory the SDK guarantees valid (the `ChrIns` window and module heads
+via typed pointers), so it won't fault on a deep raw offset.
