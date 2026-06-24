@@ -27,9 +27,15 @@ doesn't touch `regulation.bin`, so it won't block anyone from connecting.
 
 A riposte/backstab is a *throw*: TAE Event 0, action **67**
 (`INVINCIBLE_EXCLUDING_THROW_ATTACKS_DEFENDER`) sets a flag on the victim's `ChrIns` that
-blocks all damage except the throwing player's. This mod clears that one flag every frame
-on every open-field enemy, via the SDK's typed field — so the riposte itself still lands,
-but everyone else can hit the enemy too. Nothing else is touched.
+blocks all damage except the throwing player's. This mod clears that one flag, via the SDK's
+typed field, on every open-field enemy each frame — so the riposte itself still lands, but
+everyone else can hit the enemy too. Nothing else is touched.
+
+The clear runs as a recurring task on the game's **main thread**, in the
+`WorldChrMan_PostPhysics` phase: after the character behavior update has (re)set the flag for
+the frame, and right before `DmgMan` applies damage. Running in step with the game means the
+character set is stable while we touch it, so there's no cross-thread data race and no need
+for pointer guards or atomics.
 
 This is why it's a DLL rather than an animation pack: the flag is runtime combat state, not
 something `regulation.bin` params can express, and clearing it in memory takes effect where

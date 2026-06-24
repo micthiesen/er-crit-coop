@@ -35,9 +35,12 @@ const MODE: Mode = Mode::Patch;
 unsafe extern "system" fn DllMain(_: HINSTANCE, reason: u32, _: *mut c_void) -> BOOL {
     if reason == DLL_PROCESS_ATTACH {
         logger::init();
+        // Off the loader lock and off the main thread: Patch waits for the task system
+        // then registers a per-frame main-thread task and returns; Diagnostic runs its
+        // own background loop (dev-only).
         std::thread::spawn(|| match MODE {
             Mode::Diagnostic => diagnostic::diagnostic_loop(),
-            Mode::Patch => patch::patch_loop(),
+            Mode::Patch => patch::install(),
         });
     }
     true.into()
