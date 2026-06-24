@@ -3,6 +3,16 @@
 How this mod is built, run, and verified — and the Linux-specific tricks that took a while
 to work out. Useful for this repo and for any FromSoftware DLL-mod work on Linux.
 
+## Two machines, one workflow
+
+Primary development now happens on a **macOS laptop that cannot run Elden Ring** — and that's
+fine, because the cross-compile toolchain runs there (`brew install mingw-w64` + the pinned
+target) and nothing in normal development needs the game. The **run + verify loop below is a
+separate Linux + Proton rig**, driven asynchronously: deploy the DLL, launch, watch the log.
+So don't read "Run + verify loop on Linux" as "the dev machine runs the game" — build and push
+from the Mac; in-game verification happens out of band on the Linux rig. The log
+(install line → heartbeat → effect lines) is the handoff between the two.
+
 ## Toolchain: cross-compiling a Windows DLL from Linux
 
 No Windows host needed. The mod is a `cdylib` built for `x86_64-pc-windows-gnu`:
