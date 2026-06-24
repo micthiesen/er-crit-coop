@@ -27,13 +27,16 @@ single DLL that clears that runtime state, applied on every machine (host includ
 
 ## Status
 
-**Phase 1 — diagnostic (current).** Nobody has published *where* the throw-invuln state
-lives on `ChrIns`, so this build only observes: it snapshots every open-field character's
-active SpEffects and a raw `ChrIns` byte window, logging on change. Riposting a lone enemy
-reveals the flag/speffect that toggles during the invuln window. See `docs/session.md`.
+**Functional (`MODE = Patch`), pending in-game verification.** The `fromsoftware-rs` SDK
+exposes the exact flag by name — `CSChrActionFlagModule::action_modifiers_flags::`
+`invincible_excluding_throw_attacks_defender` (TAE Event 0, action 67) — so no offset
+hunting or calibration session was needed. `src/patch.rs` clears that one bit every 8ms on
+every open-field enemy, through the SDK's typed setter (crash-safe, no raw offsets). The
+riposte still lands; only the "everyone-else-can't-hit-me" bit is dropped.
 
-**Phase 2 — patch (next).** Clear the identified flag/speffect each frame for enemies (or
-neutralize the TAE-67 setter), so the enemy stays damageable during the crit.
+What's left is to confirm it in-game (the log records `cleared crit-invuln` when the
+mechanism fires) and in a coop test. `src/diagnostic.rs` (`MODE = Diagnostic`) remains for
+investigating any enemy that uses a different invuln flag.
 
 ## Build
 

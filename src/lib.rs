@@ -28,8 +28,9 @@ enum Mode {
     Patch,
 }
 
-/// Active behavior. Diagnostic until the invuln bit is confirmed in `patch::TARGET`.
-const MODE: Mode = Mode::Diagnostic;
+/// Active behavior. The SDK exposes the crit-invuln flag by name, so the patch is
+/// the default; `Diagnostic` is kept for investigating any enemies it misses.
+const MODE: Mode = Mode::Patch;
 
 #[unsafe(no_mangle)]
 unsafe extern "system" fn DllMain(_: HINSTANCE, reason: u32, _: *mut c_void) -> BOOL {
