@@ -52,6 +52,25 @@ pub fn patch_loop() {
         if let Ok(wcm) = unsafe { WorldChrMan::instance() } {
             // `characters()` yields `&mut ChrIns` even from `&WorldChrMan` (it walks
             // the ChrSet via raw pointers), so we can clear the flag in place.
+            //
+            // TODO(robustness): gate iteration on the entry's load status == Active.
+            // `characters()` yields every entry whose `chr_ins` is Some, regardless of
+            // load status, so during loading screens / world reloads it can hand us a
+            // ChrIns that is mid-initialization or mid-teardown. Such a ChrIns can carry
+            // plausible-looking (canonical, 8-aligned) module pointers that `looks_valid`
+            // passes but that aren't safe to dereference. The robust fix is to iterate the
+            // ChrSet entries directly and skip any whose `chr_load_status` != Active (see
+            // fromsoftware-rs `world_chr_man.rs`: `ChrSetEntry` / `ChrLoadStatus`), rather
+            // than the `characters()` helper which hides the entry. Deferred because it
+            // means reimplementing the iterator with more unsafe code in the shipping hot
+            // path, which needs in-game retesting before trusting it.
+            //
+            // Bigger picture: the fully sound design runs this from a game main-thread hook
+            // (a per-frame task) instead of a background thread, eliminating the cross-thread
+            // access to live game memory entirely. The background-thread approach here is the
+            // common ER-mod pattern and works in practice, but is not sound by the SDK's
+            // documented `instance()`/access contract. A main-thread hook would also fix the
+            // non-atomic read-modify-write of the action-flag word.
             for chr in wcm.open_field_chr_set.base.characters() {
                 // Guard against torn-down characters before dereferencing.
                 let modules_ptr = chr.modules.as_ptr();
