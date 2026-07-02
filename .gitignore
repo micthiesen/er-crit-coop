@@ -1,2 +1,7 @@
 /target
 *.log
+
+# Reverse-engineering artifacts: raw disassembly / decompiler output of eldenring.exe.
+# Never commit these to a public repo (clean-room hygiene) — behavioral notes go in
+# docs/CRIT-COOP-RE.md in our own words instead.
+/scripts/re/artifacts/

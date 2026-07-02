@@ -1,5 +1,14 @@
 # er-crit-coop
 
+> ⚠️ **Not ready for use — the crit-coop mechanism doesn't work yet.** The DLL builds, loads
+> via Elden Mod Loader, and runs its per-frame task, but the approach it was built on (clearing
+> the victim's TAE action-67 "invincible excluding throw attacks" flag) does **not** actually let
+> co-op partners damage an enemy during a crit. Tested in-game on both regular enemies and bosses:
+> the flag is cleared every frame, yet partner and summon hits still pass through the victim. The
+> real lockout lives elsewhere in the enemy damage path (keyed on the throw pairing), and finding
+> it is reverse-engineering-gated (in progress; see [`docs/CRIT-COOP-RE.md`](docs/CRIT-COOP-RE.md)).
+> Don't install this expecting working crit co-op.
+
 An Elden Ring DLL mod that lets **Seamless Co-op** partners deal damage to an enemy
 while it's locked in a **critical-hit animation** (riposte / backstab / guard counter).
 
